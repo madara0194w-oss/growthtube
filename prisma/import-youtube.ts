@@ -2,7 +2,7 @@ import { PrismaClient, VideoCategory } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || 'AIzaSyBuGqtsenrHu5D5-8QyTWw5eF76wzjJzBU'
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || ''
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
 // Channels to import
