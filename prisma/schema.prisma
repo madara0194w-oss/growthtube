@@ -1,0 +1,408 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==================== AUTH MODELS ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  username      String    @unique
+  displayName   String
+  password      String?   // Null for OAuth users
+  avatar        String?
+  banner        String?
+  bio           String?
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  channel       Channel?
+  comments      Comment[]
+  likes         Like[]
+  dislikes      Dislike[]
+  subscriptions Subscription[] @relation("Subscriber")
+  watchHistory  WatchHistory[]
+  watchLater    WatchLater[]
+  playlists     Playlist[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ==================== CHANNEL MODEL ====================
+
+model Channel {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  handle          String   @unique // @username
+  name            String
+  description     String?  @db.Text
+  avatar          String?
+  banner          String?
+  subscriberCount Int      @default(0)
+  videoCount      Int      @default(0)
+  totalViews      BigInt   @default(0)
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos        Video[]
+  subscribers   Subscription[] @relation("Channel")
+  playlists     Playlist[]
+  links         ChannelLink[]
+
+  @@index([handle])
+  @@map("channels")
+}
+
+model ChannelLink {
+  id        String  @id @default(cuid())
+  channelId String
+  platform  String
+  url       String
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("channel_links")
+}
+
+// ==================== VIDEO MODEL ====================
+
+model Video {
+  id           String          @id @default(cuid())
+  channelId    String
+  title        String
+  description  String?         @db.Text
+  videoUrl     String          // URL to video file (external storage)
+  thumbnail    String?
+  duration     Int             @default(0) // in seconds
+  views        BigInt          @default(0)
+  likes        Int             @default(0)
+  dislikes     Int             @default(0)
+  commentCount Int             @default(0)
+  category     VideoCategory   @default(ENTERTAINMENT)
+  visibility   VideoVisibility @default(PUBLIC)
+  isLive       Boolean         @default(false)
+  isShort      Boolean         @default(false)
+  publishedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Relations
+  channel      Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  tags         VideoTag[]
+  comments     Comment[]
+  likedBy      Like[]
+  dislikedBy   Dislike[]
+  watchHistory WatchHistory[]
+  watchLater   WatchLater[]
+  playlistItems PlaylistItem[]
+
+  @@index([channelId])
+  @@index([category])
+  @@index([visibility, publishedAt])
+  @@map("videos")
+}
+
+model VideoTag {
+  id      String @id @default(cuid())
+  videoId String
+  tag     String
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, tag])
+  @@index([tag])
+  @@map("video_tags")
+}
+
+enum VideoCategory {
+  MUSIC
+  GAMING
+  NEWS
+  SPORTS
+  ENTERTAINMENT
+  EDUCATION
+  SCIENCE
+  TECHNOLOGY
+  COMEDY
+  FILM
+  HOWTO
+  TRAVEL
+  PETS
+  FASHION
+  FOOD
+  FITNESS
+  PODCASTS
+}
+
+enum VideoVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+// ==================== INTERACTION MODELS ====================
+
+model Comment {
+  id        String   @id @default(cuid())
+  videoId   String
+  userId    String
+  parentId  String?  // For replies
+  text      String   @db.Text
+  likes     Int      @default(0)
+  dislikes  Int      @default(0)
+  isPinned  Boolean  @default(false)
+  isHearted Boolean  @default(false)
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video   Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@map("likes")
+}
+
+model Dislike {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@map("dislikes")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  subscriberId         String
+  channelId            String
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  subscriber User    @relation("Subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  channel    Channel @relation("Channel", fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, channelId])
+  @@index([channelId])
+  @@map("subscriptions")
+}
+
+// ==================== USER ACTIVITY MODELS ====================
+
+model WatchHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  progress  Float    @default(0) // Percentage watched (0-100)
+  watchedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([userId, watchedAt])
+  @@map("watch_history")
+}
+
+model WatchLater {
+  id        String   @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@map("watch_later")
+}
+
+// ==================== PLAYLIST MODELS ====================
+
+model Playlist {
+  id          String             @id @default(cuid())
+  userId      String
+  channelId   String?
+  title       String
+  description String?            @db.Text
+  thumbnail   String?
+  visibility  PlaylistVisibility @default(PUBLIC)
+  videoCount  Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  items   PlaylistItem[]
+
+  @@index([userId])
+  @@map("playlists")
+}
+
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  videoId    String
+  position   Int
+  addedAt    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  video    Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId, position])
+  @@map("playlist_items")
+}
+
+enum PlaylistVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+// ==================== CURATION MODELS ====================
+
+model CurationQueue {
+  id               String           @id @default(cuid())
+  youtubeVideoId   String           @unique
+  youtubeChannelId String
+  title            String
+  description      String?          @db.Text
+  channelName      String
+  thumbnail        String?
+  duration         Int              // in seconds
+  publishedAt      DateTime?
+  tags             String[]         // Array of tags
+  
+  // AI Evaluation
+  aiScore          Int?             // 0-100
+  aiDecision       String?          // "APPROVE" | "REJECT"
+  aiCategory       String?          // "mind" | "body" | "skills" | "wealth" | "spirit"
+  aiConfidence     String?          // "high" | "medium" | "low"
+  aiReason         String?          @db.Text
+  aiTags           String[]         // AI-suggested tags
+  
+  // Curation Status
+  status           CurationStatus   @default(PENDING)
+  reviewedBy       String?          // Admin user ID who reviewed
+  reviewNote       String?          @db.Text
+  
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  
+  @@index([status])
+  @@index([aiScore])
+  @@index([createdAt])
+  @@map("curation_queue")
+}
+
+enum CurationStatus {
+  PENDING        // Waiting for review
+  AUTO_APPROVED  // Auto-approved by AI (score ≥ 90)
+  APPROVED       // Manually approved by admin
+  REJECTED       // Rejected by admin or AI
+  IMPORTED       // Successfully imported to database
+}
+
+// ==================== NOTIFICATION MODEL ====================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  thumbnail String?
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  UPLOAD
+  COMMENT
+  LIKE
+  SUBSCRIBE
+  MENTION
+  LIVE
+}
