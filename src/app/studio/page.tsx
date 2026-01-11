@@ -60,7 +60,7 @@ export default function StudioPage() {
         <Video className="w-20 h-20 mx-auto mb-4 text-[var(--accent)]" />
         <h2 className="text-2xl font-bold mb-4">GrowthTube Studio</h2>
         <p className="text-[var(--text-secondary)] mb-6 max-w-2xl mx-auto">
-          The full creator studio experience is coming soon. You'll be able to upload videos, 
+          The full creator studio experience is coming soon. You&apos;ll be able to upload videos, 
           view detailed analytics, manage comments, and customize your channel.
         </p>
         <Button leftIcon={<Upload className="w-5 h-5" />} disabled>
