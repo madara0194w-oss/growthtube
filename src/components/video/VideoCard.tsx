@@ -176,13 +176,13 @@ export function VideoCard({ video, variant = 'default', showChannel = true, clas
             </IconButton>
           }
         >
-          <DropdownItem icon={<Clock className="w-5 h-5" />} onClick={(e: React.MouseEvent) => { e.preventDefault(); addToWatchLater(video.id); addToast({ type: 'success', message: 'Added to Watch later' }) }}>
+          <DropdownItem icon={<Clock className="w-5 h-5" />} onClick={() => { addToWatchLater(video.id); addToast({ type: 'success', message: 'Added to Watch later' }) }}>
             Save to Watch later
           </DropdownItem>
-          <DropdownItem icon={<ListPlus className="w-5 h-5" />} onClick={(e: React.MouseEvent) => e.preventDefault()}>
+          <DropdownItem icon={<ListPlus className="w-5 h-5" />}>
             Save to playlist
           </DropdownItem>
-          <DropdownItem icon={<Share2 className="w-5 h-5" />} onClick={(e: React.MouseEvent) => { e.preventDefault(); handleShare(e); }}>
+          <DropdownItem icon={<Share2 className="w-5 h-5" />} onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${getVideoUrl(video.id)}`); addToast({ type: 'success', message: 'Link copied to clipboard' }) }}>
             Share
           </DropdownItem>
           <DropdownDivider />
