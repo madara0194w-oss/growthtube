@@ -56,7 +56,7 @@ export default function SubscriptionsPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <PlaySquare className="w-24 h-24 text-[var(--text-tertiary)] mb-6" />
-        <h1 className="text-2xl font-bold mb-2">Don't miss new videos</h1>
+        <h1 className="text-2xl font-bold mb-2">Don&apos;t miss new videos</h1>
         <p className="text-[var(--text-secondary)] mb-6 max-w-md">
           Sign in to see updates from your favorite GrowthTube channels
         </p>

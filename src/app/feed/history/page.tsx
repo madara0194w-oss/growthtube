@@ -68,7 +68,7 @@ export default function HistoryPage() {
         <History className="w-24 h-24 text-[var(--text-tertiary)] mb-6" />
         <h1 className="text-2xl font-bold mb-2">Keep track of what you watch</h1>
         <p className="text-[var(--text-secondary)] mb-6 max-w-md">
-          Watch history isn't viewable when signed out
+          Watch history isn&apos;t viewable when signed out
         </p>
         <Button onClick={() => openModal('login')}>Sign in</Button>
       </div>
@@ -96,7 +96,7 @@ export default function HistoryPage() {
             {filteredVideos.length === 0 && searchQuery && (
               <div className="text-center py-12">
                 <p className="text-[var(--text-secondary)]">
-                  No videos found for "{searchQuery}"
+                  No videos found for &quot;{searchQuery}&quot;
                 </p>
               </div>
             )}

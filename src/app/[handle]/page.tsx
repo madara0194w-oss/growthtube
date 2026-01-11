@@ -80,7 +80,7 @@ export default function ChannelPage() {
       <div className="text-center py-12">
         <h2 className="text-xl font-medium mb-2">Channel not found</h2>
         <p className="text-[var(--text-secondary)]">
-          The channel @{handle} doesn't exist or has been removed.
+          The channel @{handle} doesn&apos;t exist or has been removed.
         </p>
         <Link href="/" className="text-blue-500 hover:text-blue-400 mt-4 inline-block">
           Go back home

@@ -115,7 +115,7 @@ export default function HelpPage() {
             ))
           ) : (
             <div className="text-center py-8 text-[var(--text-secondary)]">
-              No results found for "{searchQuery}"
+              No results found for &quot;{searchQuery}&quot;
             </div>
           )}
         </div>
@@ -125,7 +125,7 @@ export default function HelpPage() {
       <section className="mt-12 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-8 text-center">
         <h2 className="text-2xl font-bold mb-4">Still need help?</h2>
         <p className="text-[var(--text-secondary)] mb-6">
-          Can't find what you're looking for? Our support team is here to help.
+          Can&apos;t find what you&apos;re looking for? Our support team is here to help.
         </p>
         <Button leftIcon={<Mail className="w-5 h-5" />}>
           Contact Support

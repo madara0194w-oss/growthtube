@@ -100,7 +100,7 @@ export default function HomePage() {
       {/* End of content */}
       {!isLoading && !hasMore && videos.length > 0 && (
         <div className="text-center py-8 text-[var(--text-secondary)]">
-          <p>You've seen all {videos.length} videos!</p>
+          <p>You&apos;ve seen all {videos.length} videos!</p>
           <p className="text-sm mt-1">More content coming soon...</p>
         </div>
       )}
