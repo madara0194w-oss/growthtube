@@ -62,7 +62,7 @@ async function main() {
     console.log(`   ✓ Deleted ${deleteResult.count} videos`)
     
     // Update channel video counts
-    for (const [channelId, count] of channelUpdates.entries()) {
+    for (const [channelId, count] of Array.from(channelUpdates.entries())) {
       await tx.channel.update({
         where: { id: channelId },
         data: { 
