@@ -45,10 +45,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (session?.user) {
-      setDisplayName(session.user.displayName || '')
+      setDisplayName((session.user as any).displayName || session.user.name || '')
       setUsername(session.user.username || '')
       setEmail(session.user.email || '')
-      setBio(session.user.bio || '')
+      setBio((session.user as any).bio || '')
     }
   }, [session])
 
@@ -111,8 +111,8 @@ export default function SettingsPage() {
 
         <div className="flex items-center gap-6 mb-6">
           <Avatar
-            src={session.user.avatar}
-            alt={session.user.displayName || ''}
+            src={(session.user as any).avatar || session.user.image}
+            alt={(session.user as any).displayName || session.user.name || ''}
             size="lg"
           />
           <div>
@@ -172,7 +172,7 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <Button onClick={handleSaveProfile} loading={isSaving}>
+          <Button onClick={handleSaveProfile} isLoading={isSaving}>
             Save Changes
           </Button>
         </div>

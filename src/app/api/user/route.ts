@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         _count: {
           select: {
             subscriptions: true,
-            likedVideos: true,
+            likes: true,
             watchHistory: true,
             watchLater: true,
             playlists: true,
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
         : null,
       stats: {
         subscriptions: user._count.subscriptions,
-        likedVideos: user._count.likedVideos,
+        likedVideos: user._count.likes,
         watchHistory: user._count.watchHistory,
         watchLater: user._count.watchLater,
         playlists: user._count.playlists,

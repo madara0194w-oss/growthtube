@@ -151,9 +151,9 @@ function WatchPageContent() {
                 {showFullDescription ? 'Show less' : 'Show more'}
               </button>
             )}
-            {video.tags.length > 0 && (
+            {video.tags && video.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
-                {video.tags.map((tag) => (
+                {video.tags.map((tag: any) => (
                   <Link
                     key={tag}
                     href={`/results?search_query=${encodeURIComponent(tag)}`}

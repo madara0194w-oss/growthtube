@@ -228,8 +228,8 @@ export function Header() {
                   className="rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 >
                   <Avatar
-                    src={user?.avatar}
-                    alt={user?.displayName || 'User'}
+                    src={(user as any)?.avatar || user?.image}
+                    alt={(user as any)?.displayName || user?.name || 'User'}
                     size="sm"
                   />
                 </button>
@@ -238,16 +238,16 @@ export function Header() {
                   <div className="dropdown right-0 top-full mt-2 w-72">
                     <div className="px-4 py-3 border-b border-[var(--border-color)]">
                       <div className="flex items-center gap-3">
-                        <Avatar src={user?.avatar} alt={user?.displayName || ''} size="md" />
+                        <Avatar src={(user as any)?.avatar || user?.image} alt={(user as any)?.displayName || user?.name || ''} size="md" />
                         <div>
-                          <p className="font-medium">{user?.displayName}</p>
+                          <p className="font-medium">{(user as any)?.displayName || user?.name}</p>
                           <p className="text-sm text-[var(--text-secondary)]">@{user?.username}</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="py-2">
-                      <Link href={`/@${user?.channelHandle || user?.username}`} className="dropdown-item">
+                      <Link href={`/@${(user as any)?.channelHandle || user?.username}`} className="dropdown-item">
                         <User className="w-5 h-5" />
                         <span>Your channel</span>
                       </Link>

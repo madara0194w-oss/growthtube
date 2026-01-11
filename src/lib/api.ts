@@ -121,10 +121,12 @@ export const videoApi = {
 
     // Apply sort
     switch (filters?.sortBy) {
-      case 'upload_date':
+      case 'date':
+      case 'upload_date' as any:
         results.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
         break
-      case 'view_count':
+      case 'views':
+      case 'view_count' as any:
         results.sort((a, b) => b.views - a.views)
         break
       case 'rating':

@@ -292,7 +292,7 @@ async function startAICuration(jobId: string) {
         console.log(`[AI-CURATION] Got ${videos.length} videos from YouTube API`)
         
         if (videos.length === 0) {
-          aiJobManager.addError(`No videos found for channel: ${channel.name}`)
+          aiJobManager.addError(`No videos found for channel: ${channelName}`)
           continue
         }
 
@@ -341,7 +341,7 @@ async function startAICuration(jobId: string) {
 
           // Check language (English, Bangla, Hindi only)
           const allowedLanguages = ['en', 'bn', 'hi']
-          const videoLanguage = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage || ''
+          const videoLanguage = (video as any).snippet?.defaultLanguage || (video as any).snippet?.defaultAudioLanguage || ''
           
           if (videoLanguage && !allowedLanguages.includes(videoLanguage)) {
             totalRejected++
@@ -438,7 +438,6 @@ async function startAICuration(jobId: string) {
               // Add video to database
               await prisma.video.create({
                 data: {
-                  videoId: video.id,
                   videoUrl,
                   title: video.title,
                   description: video.description,
@@ -446,7 +445,9 @@ async function startAICuration(jobId: string) {
                   duration,
                   views: video.viewCount,
                   likes: video.likeCount,
-                  category: evaluation.category || 'EDUCATION',
+                  category: (evaluation.category === 'mind' || evaluation.category === 'body' || 
+                           evaluation.category === 'skills' || evaluation.category === 'wealth' || 
+                           evaluation.category === 'spirit') ? evaluation.category.toUpperCase() as any : 'EDUCATION',
                   visibility: 'PUBLIC',
                   publishedAt: new Date(video.publishedAt),
                   channelId: dbChannel.id

@@ -211,11 +211,11 @@ async function getChannelVideos(channelId: string, apiKey: string): Promise<YouT
 
     do {
       pageCount++
-      const playlistUrl = `${YOUTUBE_API_BASE}/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`
+      const playlistUrl: string = `${YOUTUBE_API_BASE}/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`
       
       console.log(`Fetching page ${pageCount}...`)
-      const playlistResponse = await fetch(playlistUrl)
-      const playlistData = await playlistResponse.json()
+      const playlistResponse: Response = await fetch(playlistUrl)
+      const playlistData: any = await playlistResponse.json()
       
       // Check for API errors
       if (playlistData.error) {
@@ -392,7 +392,7 @@ async function importChannel(channel: YouTubeChannel, videos: YouTubeVideo[]): P
     
     // Only allow English, Bangla, and Hindi videos
     const allowedLanguages = ['en', 'bn', 'hi']
-    const videoLanguage = video.snippet?.defaultLanguage || video.snippet?.defaultAudioLanguage || ''
+    const videoLanguage = (video.snippet as any)?.defaultLanguage || (video.snippet as any)?.defaultAudioLanguage || ''
     
     // Skip videos not in allowed languages (if language is detected)
     if (videoLanguage && !allowedLanguages.includes(videoLanguage)) {
@@ -487,7 +487,7 @@ export async function POST(request: NextRequest) {
         where: { email: session.user.email! }
       })
 
-      if (!user || user.role !== 'ADMIN') {
+      if (!user || (user as any).role !== 'ADMIN') {
         return NextResponse.json(
           { success: false, message: 'Forbidden - Admin access required' },
           { status: 403 }
