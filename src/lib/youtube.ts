@@ -25,14 +25,18 @@ export interface YouTubeVideo {
   likeCount: number
 }
 
+// Time constants
+const SECONDS_PER_HOUR = 3600
+const SECONDS_PER_MINUTE = 60
+
 // Convert ISO 8601 duration to seconds (PT1H2M3S -> 3723)
 function parseDuration(duration: string): number {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  const match = duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/)
   if (!match) return 0
   const hours = parseInt(match[1] || '0')
   const minutes = parseInt(match[2] || '0')
   const seconds = parseInt(match[3] || '0')
-  return hours * 3600 + minutes * 60 + seconds
+  return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds
 }
 
 // Get channel ID from handle/username
@@ -97,11 +101,17 @@ export async function getChannelVideos(
   try {
     const videos: YouTubeVideo[] = []
     let pageToken = ''
+    let iterations = 0
+    const maxIterations = 10 // Prevent infinite loops
 
-    while (videos.length < maxResults) {
+    while (videos.length < maxResults && iterations < maxIterations) {
+      iterations++
+      
       // First get video IDs from search
       const searchUrl = `${YOUTUBE_API_BASE}/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}&key=${YOUTUBE_API_KEY}`
-      const searchResponse = await fetch(searchUrl)
+      const searchResponse = await fetch(searchUrl, {
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      })
       const searchData = await searchResponse.json()
 
       if (!searchData.items || searchData.items.length === 0) break
@@ -111,7 +121,9 @@ export async function getChannelVideos(
 
       // Get detailed video info
       const videosUrl = `${YOUTUBE_API_BASE}/videos?part=snippet,contentDetails,statistics&id=${videoIds}&key=${YOUTUBE_API_KEY}`
-      const videosResponse = await fetch(videosUrl)
+      const videosResponse = await fetch(videosUrl, {
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      })
       const videosData = await videosResponse.json()
 
       if (videosData.items) {
@@ -138,8 +150,10 @@ export async function getChannelVideos(
         }
       }
 
-      pageToken = searchData.nextPageToken
-      if (!pageToken) break
+      const newPageToken = searchData.nextPageToken
+      // Break if no next page or same token (prevent infinite loop)
+      if (!newPageToken || newPageToken === pageToken) break
+      pageToken = newPageToken
     }
 
     return videos.slice(0, maxResults)

@@ -7,6 +7,21 @@ import { evaluateVideo, shouldAutoApprove } from '@/lib/ai-curator'
 import { getChannelVideos, getChannelIdFromHandle } from '@/lib/youtube'
 
 /**
+ * Map AI categories to VideoCategory enum
+ */
+function mapAICategoryToVideoCategory(aiCategory: string | null): string {
+  const categoryMap: Record<string, string> = {
+    'mind': 'EDUCATION',
+    'body': 'FITNESS',
+    'skills': 'EDUCATION',
+    'wealth': 'EDUCATION',
+    'spirit': 'EDUCATION',
+  }
+  
+  return categoryMap[aiCategory || ''] || 'EDUCATION'
+}
+
+/**
  * POST /api/admin/ai-curation
  * Start automated AI curation
  */
@@ -14,14 +29,22 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    // Check admin access
-    if (!session?.user?.email) {
+    // Check admin access - verify from database, not just session
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
-    if (!adminEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true, email: true },
+    })
+
+    if (!user?.isAdmin) {
+      // Fallback to email check for backwards compatibility
+      const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
+      if (!adminEmails.includes(session.user.email || '')) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      }
     }
 
     // Check if job is already running
@@ -61,14 +84,22 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    // Check admin access
-    if (!session?.user?.email) {
+    // Check admin access - verify from database
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
-    if (!adminEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true, email: true },
+    })
+
+    if (!user?.isAdmin) {
+      // Fallback to email check
+      const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
+      if (!adminEmails.includes(session.user.email || '')) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      }
     }
 
     const status = aiJobManager.getStatus()
@@ -89,14 +120,22 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    // Check admin access
-    if (!session?.user?.email) {
+    // Check admin access - verify from database
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
-    if (!adminEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true, email: true },
+    })
+
+    if (!user?.isAdmin) {
+      // Fallback to email check
+      const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
+      if (!adminEmails.includes(session.user.email || '')) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      }
     }
 
     aiJobManager.requestStop()
@@ -445,9 +484,7 @@ async function startAICuration(jobId: string) {
                   duration,
                   views: video.viewCount,
                   likes: video.likeCount,
-                  category: (evaluation.category === 'mind' || evaluation.category === 'body' || 
-                           evaluation.category === 'skills' || evaluation.category === 'wealth' || 
-                           evaluation.category === 'spirit') ? evaluation.category.toUpperCase() as any : 'EDUCATION',
+                  category: mapAICategoryToVideoCategory(evaluation.category),
                   visibility: 'PUBLIC',
                   publishedAt: new Date(video.publishedAt),
                   channelId: dbChannel.id

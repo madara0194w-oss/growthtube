@@ -21,6 +21,7 @@ model User {
   banner        String?
   bio           String?
   isVerified    Boolean   @default(false)
+  isAdmin       Boolean   @default(false) // Admin flag for secure authorization
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -89,8 +90,8 @@ model Channel {
   description     String?  @db.Text
   avatar          String?
   banner          String?
-  subscriberCount Int      @default(0)
-  videoCount      Int      @default(0)
+  subscriberCount Int      @default(0) @db.Integer // Enforce non-negative via CHECK constraint
+  videoCount      Int      @default(0) @db.Integer // Enforce non-negative via CHECK constraint
   totalViews      BigInt   @default(0)
   isVerified      Boolean  @default(false)
   createdAt       DateTime @default(now())
@@ -136,6 +137,7 @@ model Video {
   isLive       Boolean         @default(false)
   isShort      Boolean         @default(false)
   publishedAt  DateTime?
+  deletedAt    DateTime?       // Soft delete support
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -152,6 +154,7 @@ model Video {
   @@index([channelId])
   @@index([category])
   @@index([visibility, publishedAt])
+  @@index([videoUrl]) // Index for duplicate detection and lookups
   @@map("videos")
 }
 

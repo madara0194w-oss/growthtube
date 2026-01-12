@@ -54,11 +54,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Increment view count (in production, you'd want to throttle this)
-    await prisma.video.update({
-      where: { id: videoId },
-      data: { views: { increment: 1 } },
-    })
+    // Increment view count with throttling (max 1 view per user per 30 minutes)
+    let viewIncremented = false
+    if (session?.user?.id) {
+      // Check last view time for authenticated users
+      const recentView = await prisma.watchHistory.findUnique({
+        where: { userId_videoId: { userId: session.user.id, videoId } },
+      })
+      
+      const THIRTY_MINUTES_MS = 30 * 60 * 1000
+      const thirtyMinutesAgo = new Date(Date.now() - THIRTY_MINUTES_MS)
+      if (!recentView || recentView.watchedAt < thirtyMinutesAgo) {
+        await prisma.video.update({
+          where: { id: videoId },
+          data: { views: { increment: 1 } },
+        })
+        viewIncremented = true
+      }
+    } else {
+      // For non-authenticated users, increment without detailed tracking
+      // In production, use IP-based throttling with Redis
+      await prisma.video.update({
+        where: { id: videoId },
+        data: { views: { increment: 1 } },
+      })
+      viewIncremented = true
+    }
 
     // Check if user has liked/disliked the video
     let userInteraction = null
@@ -95,7 +116,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       thumbnail: video.thumbnail,
       videoUrl: video.videoUrl,
       duration: video.duration,
-      views: Number(video.views) + 1, // Include the current view
+      views: Number(video.views) + (viewIncremented ? 1 : 0), // Include the current view if incremented
       likes: video.likes,
       dislikes: video.dislikes,
       commentCount: video._count.comments,
@@ -252,15 +273,26 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Delete video and update channel count
+    // Soft delete video and update channel count (prevent negative counts)
     await prisma.$transaction(async (tx) => {
-      await tx.video.delete({
+      // Soft delete by setting deletedAt timestamp
+      await tx.video.update({
         where: { id: videoId },
+        data: { 
+          deletedAt: new Date(),
+          visibility: 'PRIVATE', // Also hide the video
+        },
+      })
+
+      // Get current count to prevent going negative
+      const channel = await tx.channel.findUnique({
+        where: { id: video.channelId },
+        select: { videoCount: true },
       })
 
       await tx.channel.update({
         where: { id: video.channelId },
-        data: { videoCount: { decrement: 1 } },
+        data: { videoCount: Math.max(0, (channel?.videoCount || 1) - 1) },
       })
     })
 

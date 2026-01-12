@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    // Hash password with 14 rounds (2026 security standard)
+    const hashedPassword = await bcrypt.hash(password, 14)
 
     // Create user and channel in a transaction
     const user = await prisma.$transaction(async (tx) => {

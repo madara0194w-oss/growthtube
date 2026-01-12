@@ -66,21 +66,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       prisma.like.create({
         data: { userId, videoId },
       }),
-      prisma.video.update({
-        where: { id: videoId },
-        data: { likes: { increment: 1 } },
-      }),
       ...(existingDislike
         ? [
             prisma.dislike.delete({
               where: { userId_videoId: { userId, videoId } },
             }),
-            prisma.video.update({
-              where: { id: videoId },
-              data: { dislikes: { decrement: 1 } },
-            }),
           ]
         : []),
+      // Single video update with both operations
+      prisma.video.update({
+        where: { id: videoId },
+        data: {
+          likes: { increment: 1 },
+          ...(existingDislike && { dislikes: { decrement: 1 } }),
+        },
+      }),
     ])
 
     return NextResponse.json({

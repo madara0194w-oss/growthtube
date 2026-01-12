@@ -33,6 +33,8 @@ class AIJobManager extends EventEmitter {
 
   constructor() {
     super()
+    // Set max listeners to prevent memory leak warnings
+    this.setMaxListeners(20)
   }
 
   /**

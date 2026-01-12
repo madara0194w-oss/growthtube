@@ -133,6 +133,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json()
     const { text, parentId } = createCommentSchema.parse(body)
 
+    // Check for duplicate comment (same text from same user in last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+    const recentDuplicate = await prisma.comment.findFirst({
+      where: {
+        userId: session.user.id,
+        videoId,
+        text,
+        createdAt: { gte: fiveMinutesAgo },
+      },
+    })
+
+    if (recentDuplicate) {
+      return NextResponse.json(
+        { error: 'You already posted this comment recently' },
+        { status: 400 }
+      )
+    }
+
     // If it's a reply, check if parent comment exists
     if (parentId) {
       const parentComment = await prisma.comment.findUnique({

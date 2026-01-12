@@ -3,10 +3,17 @@ import { z } from 'zod'
 // Video validations
 export const createVideoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
-  description: z.string().max(5000, 'Description is too long').optional(),
-  videoUrl: z.string().url('Invalid video URL'),
+  description: z.string().max(1500, 'Description is too long (max 1500 characters)').optional(),
+  videoUrl: z.string().url('Invalid video URL').refine(
+    (url) => {
+      // Validate YouTube URL format
+      const youtubePattern = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|embed\/)|youtu\.be\/)[\w-]+/
+      return youtubePattern.test(url)
+    },
+    { message: 'Must be a valid YouTube URL' }
+  ),
   thumbnail: z.string().url('Invalid thumbnail URL').optional(),
-  duration: z.number().int().positive().optional(),
+  duration: z.number().int().positive('Duration must be positive'),
   category: z.enum([
     'MUSIC', 'GAMING', 'NEWS', 'SPORTS', 'ENTERTAINMENT', 'EDUCATION',
     'SCIENCE', 'TECHNOLOGY', 'COMEDY', 'FILM', 'HOWTO', 'TRAVEL',
@@ -14,25 +21,25 @@ export const createVideoSchema = z.object({
   ]).default('ENTERTAINMENT'),
   visibility: z.enum(['PUBLIC', 'UNLISTED', 'PRIVATE']).default('PUBLIC'),
   isShort: z.boolean().default(false),
-  tags: z.array(z.string().max(30)).max(500).optional(),
+  tags: z.array(z.string().min(1).max(30)).max(15).optional(), // Reduced from 500 to 15 tags
 })
 
 export const updateVideoSchema = createVideoSchema.partial()
 
 // Comment validations
 export const createCommentSchema = z.object({
-  text: z.string().min(1, 'Comment cannot be empty').max(10000, 'Comment is too long'),
+  text: z.string().min(1, 'Comment cannot be empty').max(2000, 'Comment is too long (max 2000 characters)'),
   parentId: z.string().optional(),
 })
 
 export const updateCommentSchema = z.object({
-  text: z.string().min(1, 'Comment cannot be empty').max(10000, 'Comment is too long'),
+  text: z.string().min(1, 'Comment cannot be empty').max(2000, 'Comment is too long (max 2000 characters)'),
 })
 
 // Channel validations
 export const updateChannelSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  description: z.string().max(5000).optional(),
+  description: z.string().max(1500).optional(),
   avatar: z.string().url().optional().nullable(),
   banner: z.string().url().optional().nullable(),
   links: z.array(z.object({
@@ -44,7 +51,7 @@ export const updateChannelSchema = z.object({
 // Playlist validations
 export const createPlaylistSchema = z.object({
   title: z.string().min(1, 'Title is required').max(150, 'Title is too long'),
-  description: z.string().max(5000).optional(),
+  description: z.string().max(1500).optional(),
   visibility: z.enum(['PUBLIC', 'UNLISTED', 'PRIVATE']).default('PUBLIC'),
 })
 

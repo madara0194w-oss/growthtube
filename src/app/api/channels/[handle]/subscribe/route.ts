@@ -53,57 +53,61 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (existingSubscription) {
       // Unsubscribe
-      await prisma.$transaction([
-        prisma.subscription.delete({
+      const updatedChannel = await prisma.$transaction(async (tx) => {
+        await tx.subscription.delete({
           where: {
             subscriberId_channelId: {
               subscriberId: userId,
               channelId: channel.id,
             },
           },
-        }),
-        prisma.channel.update({
+        })
+        
+        return await tx.channel.update({
           where: { id: channel.id },
           data: { subscriberCount: { decrement: 1 } },
-        }),
-      ])
+        })
+      })
 
       return NextResponse.json({
         message: 'Unsubscribed successfully',
         subscribed: false,
-        subscriberCount: channel.subscriberCount - 1,
+        subscriberCount: updatedChannel.subscriberCount,
       })
     }
 
     // Subscribe
-    await prisma.$transaction([
-      prisma.subscription.create({
+    const updatedChannel = await prisma.$transaction(async (tx) => {
+      await tx.subscription.create({
         data: {
           subscriberId: userId,
           channelId: channel.id,
         },
-      }),
-      prisma.channel.update({
+      })
+      
+      const updated = await tx.channel.update({
         where: { id: channel.id },
         data: { subscriberCount: { increment: 1 } },
-      }),
-    ])
-
-    // Create notification for the channel owner
-    await prisma.notification.create({
-      data: {
-        userId: channel.userId,
-        type: 'SUBSCRIBE',
-        title: 'New subscriber!',
-        message: `${session.user.name || session.user.username} subscribed to your channel`,
-        link: `/@${session.user.username}`,
-      },
+      })
+      
+      // Create notification inside transaction
+      await tx.notification.create({
+        data: {
+          userId: channel.userId,
+          type: 'SUBSCRIBE',
+          title: 'New subscriber!',
+          message: `${session.user.name || session.user.username} subscribed to your channel`,
+          link: `/@${session.user.username}`,
+        },
+      })
+      
+      return updated
     })
 
     return NextResponse.json({
       message: 'Subscribed successfully',
       subscribed: true,
-      subscriberCount: channel.subscriberCount + 1,
+      subscriberCount: updatedChannel.subscriberCount,
     })
   } catch (error) {
     console.error('Error subscribing to channel:', error)

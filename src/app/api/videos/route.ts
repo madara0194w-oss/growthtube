@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const where: any = {
       visibility: 'PUBLIC',
       publishedAt: { not: null },
+      deletedAt: null, // Exclude soft-deleted videos
     }
 
     if (params.category && params.category !== 'all') {
@@ -31,10 +32,14 @@ export async function GET(request: NextRequest) {
       where.channelId = params.channelId
     }
 
-    // Get videos and shuffle them for variety across channels
+    // Get videos with proper pagination (reduced from 500 to improve performance)
     const allVideos = await prisma.video.findMany({
       where,
-      take: 500, // Fetch all available videos
+      take: limit + 50, // Fetch slightly more than needed for shuffling
+      ...(cursor && {
+        cursor: { id: cursor },
+        skip: 1,
+      }),
       orderBy: { publishedAt: 'desc' },
       include: {
         channel: {
@@ -65,13 +70,12 @@ export async function GET(request: NextRequest) {
       return shuffled
     }
 
-    // If no cursor (first page), shuffle. Otherwise, use cursor-based pagination
+    // Shuffle videos for variety (only on first page)
     let videos
-    if (cursor) {
-      const cursorIndex = allVideos.findIndex(v => v.id === cursor)
-      videos = allVideos.slice(cursorIndex + 1, cursorIndex + 1 + limit + 1)
-    } else {
+    if (!cursor) {
       videos = shuffleArray(allVideos).slice(0, limit + 1)
+    } else {
+      videos = allVideos.slice(0, limit + 1)
     }
 
     let nextCursor: string | undefined
@@ -141,11 +145,15 @@ export async function POST(request: NextRequest) {
 
     const { tags, ...videoData } = validatedData
 
+    // Auto-detect if video is a short based on duration
+    const isShort = videoData.duration ? videoData.duration < 60 : false
+
     // Create video with tags
     const video = await prisma.$transaction(async (tx) => {
       const newVideo = await tx.video.create({
         data: {
           ...videoData,
+          isShort: isShort || videoData.isShort, // Auto-detect or use provided value
           channelId: channel.id,
           publishedAt: videoData.visibility === 'PUBLIC' ? new Date() : null,
         },
@@ -161,10 +169,15 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Update channel video count
+      // Update channel video count (with safety check)
+      const currentChannel = await tx.channel.findUnique({
+        where: { id: channel.id },
+        select: { videoCount: true },
+      })
+      
       await tx.channel.update({
         where: { id: channel.id },
-        data: { videoCount: { increment: 1 } },
+        data: { videoCount: (currentChannel?.videoCount || 0) + 1 },
       })
 
       return newVideo

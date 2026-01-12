@@ -59,13 +59,38 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            profile(profile) {
+            async profile(profile) {
+              // Generate unique username with retry logic
+              let username = profile.email.split('@')[0]
+              let attempt = 0
+              const maxAttempts = 10
+              
+              while (attempt < maxAttempts) {
+                const suffix = attempt === 0 ? '' : `_${Math.random().toString(36).slice(2, 7)}`
+                const testUsername = username + suffix
+                
+                const existing = await prisma.user.findUnique({
+                  where: { username: testUsername.toLowerCase() },
+                })
+                
+                if (!existing) {
+                  username = testUsername
+                  break
+                }
+                attempt++
+              }
+              
+              // Fallback to UUID if still colliding
+              if (attempt >= maxAttempts) {
+                username = `user_${profile.sub.slice(-8)}`
+              }
+              
               return {
                 id: profile.sub,
                 email: profile.email,
                 name: profile.name,
                 image: profile.picture,
-                username: profile.email.split('@')[0] + '_' + Math.random().toString(36).slice(2, 7),
+                username,
               }
             },
           }),
@@ -78,13 +103,38 @@ export const authOptions: NextAuthOptions = {
           GitHubProvider({
             clientId: process.env.GITHUB_CLIENT_ID,
             clientSecret: process.env.GITHUB_CLIENT_SECRET,
-            profile(profile) {
+            async profile(profile) {
+              // Generate unique username with retry logic
+              let username = profile.login
+              let attempt = 0
+              const maxAttempts = 10
+              
+              while (attempt < maxAttempts) {
+                const suffix = attempt === 0 ? '' : `_${Math.random().toString(36).slice(2, 7)}`
+                const testUsername = username + suffix
+                
+                const existing = await prisma.user.findUnique({
+                  where: { username: testUsername.toLowerCase() },
+                })
+                
+                if (!existing) {
+                  username = testUsername
+                  break
+                }
+                attempt++
+              }
+              
+              // Fallback to UUID if still colliding
+              if (attempt >= maxAttempts) {
+                username = `user_${profile.id.toString().slice(-8)}`
+              }
+              
               return {
                 id: profile.id.toString(),
                 email: profile.email,
                 name: profile.name || profile.login,
                 image: profile.avatar_url,
-                username: profile.login + '_' + Math.random().toString(36).slice(2, 7),
+                username,
               }
             },
           }),
@@ -155,25 +205,33 @@ export const authOptions: NextAuthOptions = {
 
   events: {
     async createUser({ user }) {
-      // Create a channel for new users
+      // Create a channel for new users in a transaction
       const username = (user as any).username || user.email!.split('@')[0]
       
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          username,
-          displayName: user.name || username,
-        },
-      })
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              username,
+              displayName: user.name || username,
+            },
+          })
 
-      await prisma.channel.create({
-        data: {
-          userId: user.id,
-          handle: username,
-          name: user.name || username,
-          avatar: user.image,
-        },
-      })
+          await tx.channel.create({
+            data: {
+              userId: user.id,
+              handle: username.toLowerCase(),
+              name: user.name || username,
+              avatar: user.image,
+            },
+          })
+        })
+      } catch (error) {
+        console.error('Failed to create user channel:', error)
+        // If channel creation fails, still allow user creation
+        // User can create channel manually later
+      }
     },
   },
 

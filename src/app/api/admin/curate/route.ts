@@ -10,32 +10,30 @@ import { getChannelVideos, getChannelIdFromHandle } from '@/lib/youtube'
  * Curate videos from YouTube using AI
  */
 export async function POST(req: NextRequest) {
-  console.log('[API] POST request received')
-  
   try {
     const session = await getServerSession(authOptions)
-    console.log('[API] Session:', session?.user?.email || 'No session')
 
-    // Check if user is admin
-    if (!session?.user?.email) {
-      console.log('[API] Unauthorized - no session')
+    // Check if user is admin - verify from database
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized - Please login' }, { status: 401 })
     }
 
-    // Check admin access
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
-    console.log('[API] Admin emails configured:', adminEmails)
-    console.log('[API] User email:', session.user.email)
-    
-    if (!adminEmails.includes(session.user.email)) {
-      console.log('[API] Forbidden - not admin')
-      return NextResponse.json({ error: 'Admin access required. Your email: ' + session.user.email }, { status: 403 })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true, email: true },
+    })
+
+    if (!user?.isAdmin) {
+      // Fallback to email check
+      const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
+      
+      if (!adminEmails.includes(session.user.email || '')) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      }
     }
 
     const body = await req.json()
     const { type, url, channelId, query } = body
-    
-    console.log('[API] Request body:', { type, url, channelId })
 
     let videos: any[] = []
 
@@ -48,14 +46,10 @@ export async function POST(req: NextRequest) {
         // Extract from URL
         const extracted = extractChannelIdFromUrl(url)
 
-        console.log('[DEBUG] Extracted from URL:', extracted)
-
         // If it's a handle (@username), resolve it
         if (extracted.startsWith('@')) {
           const cleanHandle = extracted.replace('@', '')
-          console.log('[DEBUG] Resolving handle:', cleanHandle)
           const resolvedId = await getChannelIdFromHandle(cleanHandle)
-          console.log('[DEBUG] Resolved ID:', resolvedId)
           if (!resolvedId) {
             return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
           }
@@ -65,16 +59,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      console.log('[DEBUG] Final channel ID:', id)
-
       if (!id) {
         return NextResponse.json({ error: 'Could not determine channel ID' }, { status: 400 })
       }
 
       // Fetch videos (default 50, can be increased)
-      console.log('[DEBUG] Fetching videos from channel ID:', id)
       const fetchedVideos = await getChannelVideos(id, 50)
-      console.log('[DEBUG] Fetched videos count:', fetchedVideos.length)
 
       // Convert to format expected by evaluator
       videos = fetchedVideos.map(v => ({
@@ -95,7 +85,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    console.log('[DEBUG] Starting to process', videos.length, 'videos')
 
     const results = {
       total: videos.length,
@@ -222,13 +211,20 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',') || []
-    if (!adminEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { isAdmin: true, email: true },
+    })
+
+    if (!user?.isAdmin) {
+      const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || []
+      if (!adminEmails.includes(session.user.email || '')) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      }
     }
 
     const { searchParams } = new URL(req.url)
@@ -301,34 +297,78 @@ async function importVideoToDatabase(video: any, evaluation: any, userEmail: str
       }
     })
 
-    // If channel doesn't exist, create it
+    // If channel doesn't exist, create it (with race condition protection)
     if (!channel) {
-      // Find or create a user for this channel
-      let channelUser = await prisma.user.findUnique({
-        where: { email: `${video.channelId}@youtube.import` }
-      })
-
-      if (!channelUser) {
-        channelUser = await prisma.user.create({
-          data: {
-            email: `${video.channelId}@youtube.import`,
-            username: video.channelName.toLowerCase().replace(/\s+/g, ''),
-            displayName: video.channelName,
-            password: null, // External channel, no password
+      // Use transaction to prevent race conditions
+      channel = await prisma.$transaction(async (tx) => {
+        // Check again inside transaction
+        let existingChannel = await tx.channel.findFirst({
+          where: {
+            OR: [
+              { handle: video.channelName.toLowerCase().replace(/\s+/g, '') },
+              { name: video.channelName }
+            ]
           }
         })
-      }
-
-      // Create channel
-      channel = await prisma.channel.create({
-        data: {
-          userId: channelUser.id,
-          handle: video.channelName.toLowerCase().replace(/\s+/g, ''),
-          name: video.channelName,
-          description: `Imported from YouTube`,
-          avatar: video.thumbnail,
-          isVerified: true, // Mark imported channels as verified
+        
+        if (existingChannel) {
+          return existingChannel
         }
+        
+        // Find or create a user for this channel
+        const email = `${video.channelId}@youtube.import`
+        let channelUser = await tx.user.findUnique({
+          where: { email }
+        })
+
+        if (!channelUser) {
+          const baseUsername = video.channelName.toLowerCase().replace(/\s+/g, '_').slice(0, 20)
+          let username = baseUsername
+          let attempt = 0
+          
+          // Ensure unique username
+          while (attempt < 10) {
+            const existing = await tx.user.findUnique({
+              where: { username }
+            })
+            if (!existing) break
+            username = `${baseUsername}_${++attempt}`
+          }
+          
+          channelUser = await tx.user.create({
+            data: {
+              email,
+              username,
+              displayName: video.channelName,
+              password: null, // External channel, no password
+              emailVerified: new Date(), // Auto-verify imported accounts
+            }
+          })
+        }
+
+        // Create channel with unique handle
+        const baseHandle = video.channelName.toLowerCase().replace(/\s+/g, '_').slice(0, 20)
+        let handle = baseHandle
+        let handleAttempt = 0
+        
+        while (handleAttempt < 10) {
+          const existing = await tx.channel.findUnique({
+            where: { handle }
+          })
+          if (!existing) break
+          handle = `${baseHandle}_${++handleAttempt}`
+        }
+        
+        return await tx.channel.create({
+          data: {
+            userId: channelUser.id,
+            handle,
+            name: video.channelName,
+            description: `Imported from YouTube`,
+            avatar: video.thumbnail,
+            isVerified: true, // Mark imported channels as verified
+          }
+        })
       })
     }
 
